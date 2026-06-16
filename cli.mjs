@@ -11,8 +11,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { compileHolyC } from "../src/compiler.js";
-import { createHost } from "../src/runtime/host.js";
+import { compileHolyC } from "../holyc-wasm/src/compiler.js";   // needs holyc-wasm as a sibling
+import { createHost } from "../holyc-wasm/src/runtime/host.js";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const CORE = readFileSync(join(DIR, "HolyCFmt.HC"), "latin1");

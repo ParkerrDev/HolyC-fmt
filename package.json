@@ -1,0 +1,14 @@
+{
+  "name": "holyc-fmt",
+  "version": "0.1.0",
+  "description": "A code formatter for HolyC (Terry A. Davis's TempleOS C dialect), written in HolyC.",
+  "type": "module",
+  "bin": { "holyc-fmt": "cli.mjs" },
+  "scripts": {
+    "test": "node test.mjs",
+    "sweep": "node sweep.mjs"
+  },
+  "license": "MIT",
+  "author": "ParkerrDev",
+  "repository": { "type": "git", "url": "https://github.com/ParkerrDev/HolyC-fmt.git" }
+}

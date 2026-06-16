@@ -10,7 +10,7 @@ const dn = s => s.replace(/[ \t]+/g, "").replace(/\n+/g, "\n").trim();
 const dnO = s => dn(s.replace(/\$\$/g, "$"));
 const fmt = async (s) => (await runHolyC(CORE + `\nU8 *__inp="${esc(s)}";\nHolyCFmtPrint(__inp);\n`, { filename: "HolyCFmt.HC" })).out;
 
-const TOS = "/home/aphunt/Dev/Projects/TempleOS-wasm/reference/TempleOS";
+const TOS = process.env.TOS_DIR || "../TempleOS-wasm/reference/TempleOS";   // TempleOS-Web checkout
 const all = execSync(`find ${TOS} -iname '*.HC'`).toString().trim().split("\n");
 // spread across the tree, cap size (string-literal path), take a sample
 const N = +(process.argv[2] || 60);

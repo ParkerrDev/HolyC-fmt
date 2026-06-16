@@ -1,7 +1,8 @@
 // runhc.mjs — compile a HolyC source string with holyc-wasm and run __main headless,
 // returning everything it printed. Used to test HolyCFmt.HC end-to-end.
-import { compileHolyC } from "../src/compiler.js";
-import { createHost } from "../src/runtime/host.js";
+// Needs the holyc-wasm compiler checked out as a sibling: ../holyc-wasm
+import { compileHolyC } from "../holyc-wasm/src/compiler.js";
+import { createHost } from "../holyc-wasm/src/runtime/host.js";
 
 export async function runHolyC(source, { filename = "prog.HC" } = {}) {
   const { bytes, warnings } = compileHolyC(source, { filename, lenient: true, resilient: true });

@@ -4,6 +4,16 @@
 [TempleOS](https://templeos.org) style. The formatter itself is written in HolyC
 (`HolyCFmt.HC`) — it is written in the very style it enforces.
 
+> Part of the TempleOS-web family:
+> [TempleOS-web](https://github.com/ParkerrDev/TempleOS-Web) (the site — has the in-browser
+> Format button + `/format.html`) · [HolyC-wasm](https://github.com/ParkerrDev/HolyC-wasm)
+> (the HolyC→WASM compiler that runs this formatter) · [Hemu-wasm](https://github.com/ParkerrDev/Hemu-wasm).
+>
+> The `.HC` files are self-contained. The JS test harness / CLI run the formatter through the
+> holyc-wasm compiler, so they expect **HolyC-wasm checked out as a sibling** (`../holyc-wasm`);
+> the real-file tests also use TempleOS source from `../TempleOS-wasm/reference/TempleOS`
+> (override with `TOS_DIR=...`).
+
 ## Is there already a formatter in TempleOS?
 
 No. The TempleOS source tree (519 `.HC` files) has **no standalone code formatter**.
@@ -65,7 +75,7 @@ Fmt("MyMessy.HC","MyMessy.HC");         // reformat in place (text files only)
 ```
 
 From the **command line** (runs the *real* HolyC formatter, compiled to WASM by the
-`holyc-wasm` compiler in the parent repo — it injects the file straight into WASM
+sibling `holyc-wasm` compiler — it injects the file straight into WASM
 memory, so DolDoc `$$` is never altered):
 
 ```sh

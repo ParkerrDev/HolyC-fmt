@@ -122,7 +122,8 @@ for (const [name, input] of cases) {
 
 // real TempleOS files: must be idempotent (a fixed point), and changes vs the
 // original should only be whitespace/layout (same tokens once whitespace is stripped)
-const TOS = "/home/aphunt/Dev/Projects/TempleOS-wasm/reference/TempleOS";
+// real TempleOS source lives in the TempleOS-Web checkout; override with TOS_DIR
+const TOS = process.env.TOS_DIR || "../TempleOS-wasm/reference/TempleOS";
 const real = ["Demo/Graphics/Life.HC", "Demo/Games/TicTacToe.HC", "Compiler/Lex.HC"];
 const denoise = (s) => s.replace(/[ \t]+/g, "").replace(/\n+/g, "\n").trim();
 // our test feeds input as a HolyC string literal, so the compiler un-escapes DolDoc's
