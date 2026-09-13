@@ -1,4 +1,4 @@
-// runhc.mjs — compile a HolyC source string with holyc-wasm and run __main headless,
+// runhc.mjs - compile a HolyC source string with holyc-wasm and run __main headless,
 // returning everything it printed. Used to test HolyCFmt.HC end-to-end.
 // Needs the holyc-wasm compiler checked out as a sibling: ../holyc-wasm
 import { compileHolyC } from "../holyc-wasm/src/compiler.js";

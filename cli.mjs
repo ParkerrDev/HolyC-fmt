@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// cli.mjs — run the REAL HolyCFmt.HC formatter on a file, faithfully.
+// cli.mjs - run the REAL HolyCFmt.HC formatter on a file, faithfully.
 //
 // The file bytes are written straight into the compiled program's WASM linear memory
-// (at a high fixed address, above the heap) and the HolyC reads them from there — so,
+// (at a high fixed address, above the heap) and the HolyC reads them from there - so,
 // unlike feeding source through a string literal, DolDoc "$$" is never touched.
 //
 //   node cli.mjs path/to/File.HC            # print formatted source
@@ -18,13 +18,24 @@ const DIR = dirname(fileURLToPath(import.meta.url));
 const CORE = readFileSync(join(DIR, "HolyCFmt.HC"), "latin1");
 const INP = 28 * 1024 * 1024;   // 28 MiB: above the heap (16 MiB), below initial mem (32 MiB)
 
+const modules = new Map();
+
 export async function formatSource(source, { tabs = false, indent = 2 } = {}) {
+  if (!Number.isInteger(indent) || indent < 1 || indent > 8) throw new Error("indent must be an integer from 1 to 8");
+  if (typeof tabs !== "boolean") throw new Error("tabs must be a boolean");
+  if (source.includes("\0")) throw new Error("embedded binary is not supported by the formatter");
   const cfg = `g_use_tabs=${tabs ? "TRUE" : "FALSE"};\ng_indent_w=${indent};\n`;
   const prog = CORE + `\n${cfg}U8 *__inp=${INP};\nHolyCFmtPrint(__inp);\n`;
-  const { bytes } = compileHolyC(prog, { filename: "HolyCFmt.HC", lenient: true, resilient: true });
+  let mod = modules.get(cfg);
+  if (!mod) {
+    const { bytes } = compileHolyC(prog, { filename: "HolyCFmt.HC", lenient: true, resilient: true });
+    mod = WebAssembly.compile(bytes);
+    modules.set(cfg, mod);
+    mod.catch(() => modules.delete(cfg));
+  }
   let out = "";
   const host = createHost({ onText: (s) => { out += s; }, ansi: false });
-  const inst = await WebAssembly.instantiate(await WebAssembly.compile(bytes), { env: host.env });
+  const inst = await WebAssembly.instantiate(await mod, { env: host.env });
   host.attach?.(inst);
   const mem = new Uint8Array(inst.exports.memory.buffer);
   if (INP + source.length + 1 > mem.length) throw new Error("file too large for this CLI");
@@ -40,7 +51,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (!file) { console.error("usage: node cli.mjs FILE.HC [-w] [--tabs]"); process.exit(2); }
   const opts = { tabs: args.includes("--tabs") };
   const src = readFileSync(file, "latin1");
-  if (src.includes("\0")) { console.error("refusing: " + file + " has embedded binary (DolDoc) — edit it in TempleOS's Ed"); process.exit(1); }
+  if (src.includes("\0")) { console.error("refusing: " + file + " has embedded binary (DolDoc) - edit it in TempleOS's Ed"); process.exit(1); }
   const out = await formatSource(src, opts);
   if (args.includes("-w")) { writeFileSync(file, out, "latin1"); console.error("formatted " + file); }
   else process.stdout.write(out);

@@ -1,11 +1,11 @@
-# holyc-fmt — a code formatter for HolyC, written in HolyC
+# holyc-fmt - a code formatter for HolyC, written in HolyC
 
 `holyc-fmt` reformats [HolyC](https://templeos.org) source to the canonical
 [TempleOS](https://templeos.org) style. The formatter itself is written in HolyC
-(`HolyCFmt.HC`) — it is written in the very style it enforces.
+(`HolyCFmt.HC`) - it is written in the very style it enforces.
 
 > Part of the TempleOS-web family:
-> [TempleOS-web](https://github.com/ParkerrDev/TempleOS-Web) (the site — has the in-browser
+> [TempleOS-web](https://github.com/ParkerrDev/TempleOS-Web) (the site - has the in-browser
 > Format button + `/format.html`) · [HolyC-wasm](https://github.com/ParkerrDev/HolyC-wasm)
 > (the HolyC→WASM compiler that runs this formatter) · [Hemu-wasm](https://github.com/ParkerrDev/Hemu-wasm).
 >
@@ -23,11 +23,11 @@ that re-emits source. The only formatting machinery is:
 - the **DolDoc editor** keeps source indented as you type (`Adam/DolDoc/DocChar.HC`
   auto-indents on Enter; indentation is stored *structurally* as `DOCT_INDENT`
   document entries, not as text), and
-- there is no "reformat this file" command — TempleOS source is edited, not piped
+- there is no "reformat this file" command - TempleOS source is edited, not piped
   through a formatter.
 
 So `holyc-fmt` fills a real gap: it normalizes the *text* form of `.HC` files
-(which, once exported out of DolDoc, have inconsistent indentation — see below).
+(which, once exported out of DolDoc, have inconsistent indentation - see below).
 
 ## The style (measured, not guessed)
 
@@ -45,7 +45,7 @@ Conventions were measured across all 519 `.HC` files in `reference/TempleOS`:
 | goto-labels (`start_over:`) | column 0 | enforced |
 | braceless bodies (`if (x)` ⏎ `foo;`) | indented one level | enforced |
 
-The exported source is genuinely *inconsistent* — the same file mixes tabs and
+The exported source is genuinely *inconsistent* - the same file mixes tabs and
 spaces (e.g. `Demo/Games/RainDrops.HC` has a `switch` indented with 6 spaces and its
 `case` with a tab). Normalizing that is the main job.
 
@@ -58,9 +58,9 @@ A single lexical pass that, with full awareness of strings, char-consts, `//` an
   braceless-body "hanging" indents, paren/bracket continuation, goto-labels and
   `#preprocessor` lines forced to column 0;
 - normalizes **`if (` spacing**, **`) {` / `else {`** block-brace spacing, and
-  **`,`** spacing — without touching initializer braces `={1,2,3}`;
+  **`,`** spacing - without touching initializer braces `={1,2,3}`;
 - trims trailing whitespace and collapses runs of blank lines;
-- **preserves tokens exactly** — strings, comments and DolDoc markup are copied
+- **preserves tokens exactly** - strings, comments and DolDoc markup are copied
   byte-for-byte; operator spacing is left as-is (Terry's compact style is already
   canonical, and reflowing operators needs a full parser to stay correct).
 
@@ -75,7 +75,7 @@ Fmt("MyMessy.HC","MyMessy.HC");         // reformat in place (text files only)
 ```
 
 From the **command line** (runs the *real* HolyC formatter, compiled to WASM by the
-sibling `holyc-wasm` compiler — it injects the file straight into WASM
+sibling `holyc-wasm` compiler - it injects the file straight into WASM
 memory, so DolDoc `$$` is never altered):
 
 ```sh
@@ -89,8 +89,8 @@ node cli.mjs path/to/File.HC --tabs   # indent with tabs
 `holyc-fmt` is verified by *running the actual HolyC* through the `holyc-wasm`
 compiler headless and checking two properties on real TempleOS files:
 
-- **idempotent** — `fmt(fmt(x)) == fmt(x)` (a fixed point), and
-- **token-preserving** — output equals input once whitespace is ignored (it never
+- **idempotent** - `fmt(fmt(x)) == fmt(x)` (a fixed point), and
+- **token-preserving** - output equals input once whitespace is ignored (it never
   adds, drops or reorders code).
 
 ```sh
@@ -103,7 +103,7 @@ failures, 0 token changes).
 
 ## Limitations
 
-- **Plain-text HolyC only.** DolDoc files with embedded *binary* (sprites — they
+- **Plain-text HolyC only.** DolDoc files with embedded *binary* (sprites - they
   contain NUL bytes) are not text; edit those in TempleOS's `Ed`. The CLI refuses
   files containing NUL.
 - **Operator spacing is preserved, not reflowed** (`a+b` and `a + b` are both left
@@ -113,7 +113,16 @@ failures, 0 token changes).
 
 ## Files
 
-- `HolyCFmt.HC` — the formatter core (pure, I/O-free: `HolyCFmtBuf(src)`), in HolyC.
-- `Fmt.HC` — TempleOS driver (`FileRead`/`FileWrite`), in HolyC.
-- `cli.mjs` — faithful node CLI that runs the HolyC formatter via `holyc-wasm`.
-- `runhc.mjs`, `test.mjs`, `sweep.mjs` — the headless test harness.
+- `HolyCFmt.HC` - the formatter core (pure, I/O-free: `HolyCFmtBuf(src)`), in HolyC.
+- `Fmt.HC` - TempleOS driver (`FileRead`/`FileWrite`), in HolyC.
+- `cli.mjs` - faithful node CLI that runs the HolyC formatter via `holyc-wasm`.
+- `runhc.mjs`, `test.mjs`, `sweep.mjs` - the headless test harness.
+
+## Current verification
+
+The CLI caches compiled formatter modules by validated indent/tab settings while each formatting call receives fresh WASM memory. Tests and the source sweep use the same raw-memory input path as the CLI, preserving DolDoc dollar sequences. The sweep exits unsuccessfully when idempotency, token preservation, or execution fails.
+
+```sh
+TOS_DIR=/path/to/TinkerOS node test.mjs
+TOS_DIR=/path/to/TinkerOS node sweep.mjs 150
+```
