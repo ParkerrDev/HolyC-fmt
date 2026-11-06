@@ -1,58 +1,78 @@
 #!/usr/bin/env node
-// cli.mjs - run the REAL HolyCFmt.HC formatter on a file, faithfully.
+// cli.mjs: run HolyCFmt.HC, the formatter written in HolyC, on files.
 //
-// The file bytes are written straight into the compiled program's WASM linear memory
-// (at a high fixed address, above the heap) and the HolyC reads them from there - so,
-// unlike feeding source through a string literal, DolDoc "$$" is never touched.
+// The HolyC is compiled by HolyC-wasm. The file's bytes are written straight into
+// the program's linear memory, above the heap, and the HolyC reads them there, so
+// DolDoc "$$" and every other byte reach it untouched.
 //
-//   node cli.mjs path/to/File.HC            # print formatted source
-//   node cli.mjs path/to/File.HC -w         # rewrite the file in place
-//   node cli.mjs path/to/File.HC --tabs     # indent with tabs instead of 2 spaces
+// A TempleOS file can hold binary data (sprites) after a NUL. Only the text before
+// the first NUL is formatted; the binary tail is kept byte for byte.
+//
+//   node cli.mjs File.HC              print the formatted source
+//   node cli.mjs -w A.HC B.HC         rewrite files in place
+//   node cli.mjs --spaces File.HC     indent with spaces, not S2T tabs
+//   node cli.mjs --indent=4 File.HC   spaces a level (default 2, like Terry's)
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { compileHolyC } from "../holyc-wasm/src/compiler.js";   // needs holyc-wasm as a sibling
+import { compileHolyC } from "../holyc-wasm/src/compiler.js"; // HolyC-wasm checked out as a sibling
 import { createHost } from "../holyc-wasm/src/runtime/host.js";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const CORE = readFileSync(join(DIR, "HolyCFmt.HC"), "latin1");
-const INP = 28 * 1024 * 1024;   // 28 MiB: above the heap (16 MiB), below initial mem (32 MiB)
+const INP = 28 * 1024 * 1024; // above the heap (16 MiB), below the initial memory (32 MiB)
 
 const modules = new Map();
 
-export async function formatSource(source, { tabs = false, indent = 2 } = {}) {
-  if (!Number.isInteger(indent) || indent < 1 || indent > 8) throw new Error("indent must be an integer from 1 to 8");
-  if (typeof tabs !== "boolean") throw new Error("tabs must be a boolean");
-  if (source.includes("\0")) throw new Error("embedded binary is not supported by the formatter");
-  const cfg = `g_use_tabs=${tabs ? "TRUE" : "FALSE"};\ng_indent_w=${indent};\n`;
-  const prog = CORE + `\n${cfg}U8 *__inp=${INP};\nHolyCFmtPrint(__inp);\n`;
+function compiled(cfg) {
   let mod = modules.get(cfg);
   if (!mod) {
+    const prog = CORE + `\n${cfg}U8 *__inp=${INP};\nHolyCFmtPrint(__inp);\n`;
     const { bytes } = compileHolyC(prog, { filename: "HolyCFmt.HC", lenient: true, resilient: true });
     mod = WebAssembly.compile(bytes);
     modules.set(cfg, mod);
     mod.catch(() => modules.delete(cfg));
   }
+  return mod;
+}
+
+// Format a source string. Text after a NUL is kept as it is.
+export async function formatSource(source, { tabs = true, indent = 2 } = {}) {
+  if (!Number.isInteger(indent) || indent < 1 || indent > 8) throw new Error("indent must be an integer from 1 to 8");
+  if (typeof tabs !== "boolean") throw new Error("tabs must be a boolean");
+  const nul = source.indexOf("\0");
+  const text = nul < 0 ? source : source.slice(0, nul);
+  const tail = nul < 0 ? "" : source.slice(nul);
+  const cfg = `fmt_tabs=${tabs ? "TRUE" : "FALSE"};\nfmt_indent=${indent};\n`;
   let out = "";
   const host = createHost({ onText: (s) => { out += s; }, ansi: false });
-  const inst = await WebAssembly.instantiate(await mod, { env: host.env });
+  const inst = await WebAssembly.instantiate(await compiled(cfg), { env: host.env });
   host.attach?.(inst);
   const mem = new Uint8Array(inst.exports.memory.buffer);
-  if (INP + source.length + 1 > mem.length) throw new Error("file too large for this CLI");
-  for (let i = 0; i < source.length; i++) mem[INP + i] = source.charCodeAt(i) & 0xff;
-  mem[INP + source.length] = 0;
+  if (INP + text.length + 1 > mem.length) throw new Error("file too large for this tool");
+  for (let i = 0; i < text.length; i++) mem[INP + i] = text.charCodeAt(i) & 0xff;
+  mem[INP + text.length] = 0;
   inst.exports.__main();
-  return out;
+  return out + tail;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
-  const file = args.find((a) => !a.startsWith("-"));
-  if (!file) { console.error("usage: node cli.mjs FILE.HC [-w] [--tabs]"); process.exit(2); }
-  const opts = { tabs: args.includes("--tabs") };
-  const src = readFileSync(file, "latin1");
-  if (src.includes("\0")) { console.error("refusing: " + file + " has embedded binary (DolDoc) - edit it in TempleOS's Ed"); process.exit(1); }
-  const out = await formatSource(src, opts);
-  if (args.includes("-w")) { writeFileSync(file, out, "latin1"); console.error("formatted " + file); }
-  else process.stdout.write(out);
+  const files = args.filter((a) => !a.startsWith("-"));
+  const ind = args.find((a) => a.startsWith("--indent="));
+  const opts = { tabs: !args.includes("--spaces"), indent: ind ? Number(ind.slice(9)) : 2 };
+  if (!files.length) {
+    console.error("usage: node cli.mjs [-w] [--spaces] [--indent=N] FILE.HC...");
+    process.exit(2);
+  }
+  for (const file of files) {
+    const src = readFileSync(file, "latin1");
+    const out = await formatSource(src, opts);
+    if (args.includes("-w")) {
+      if (out !== src) {
+        writeFileSync(file, out, "latin1");
+        console.error("formatted " + file);
+      }
+    } else process.stdout.write(Buffer.from(out, "latin1"));
+  }
 }

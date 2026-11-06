@@ -1,128 +1,154 @@
-# holyc-fmt - a code formatter for HolyC, written in HolyC
+# HolyC-fmt
 
-`holyc-fmt` reformats [HolyC](https://templeos.org) source to the canonical
-[TempleOS](https://templeos.org) style. The formatter itself is written in HolyC
-(`HolyCFmt.HC`) - it is written in the very style it enforces.
+A formatter for HolyC, the language of TempleOS, written in HolyC. It lays code
+out the way Terry A. Davis's own tools left his tree.
 
-> Part of the TempleOS-web family:
-> [TempleOS-web](https://github.com/ParkerrDev/TempleOS-Web) (the site - has the in-browser
-> Format button + `/format.html`) · [HolyC-wasm](https://github.com/ParkerrDev/HolyC-wasm)
-> (the HolyC→WASM compiler that runs this formatter) · [Hemu-wasm](https://github.com/ParkerrDev/Hemu-wasm).
->
-> The `.HC` files are self-contained. The JS test harness / CLI run the formatter through the
-> holyc-wasm compiler, so they expect **HolyC-wasm checked out as a sibling** (`../holyc-wasm`);
-> the real-file tests also use TempleOS source from `../TempleOS-wasm/reference/TempleOS`
-> (override with `TOS_DIR=...`).
+Part of the TempleOS-Web family: [TempleOS-Web](https://github.com/ParkerrDev/TempleOS-Web)
+(the site, with a Format button in its editor and a page at `/format.html`),
+[HolyC-wasm](https://github.com/ParkerrDev/HolyC-wasm) (the compiler that runs this
+formatter outside TempleOS) and [HEMU](https://github.com/ParkerrDev/HEMU).
 
-## Is there already a formatter in TempleOS?
+## What it copies
 
-No. The TempleOS source tree (519 `.HC` files) has **no standalone code formatter**.
-The `Compiler/` directory has a lexer, parser, optimizer and assembler but nothing
-that re-emits source. The only formatting machinery is:
+TempleOS has two layout tools, and HolyC-fmt ports both and runs them over whole files.
 
-- the **DolDoc editor** keeps source indented as you type (`Adam/DolDoc/DocChar.HC`
-  auto-indents on Enter; indentation is stored *structurally* as `DOCT_INDENT`
-  document entries, not as text), and
-- there is no "reformat this file" command - TempleOS source is edited, not piped
-  through a formatter.
+* **Reindent.** In the editor, Ctrl+Shift+L opens Code Tools, and "Reindent HolyC Fun
+  (Beware braces in strings.)" reindents the function under the cursor. That is
+  `EdRICode` in `Adam/DolDoc/DocCodeTools.HC`, at two spaces a level
+  (`C_INDENT_SPACES`).
+* **S2T.** `S2T` in `Adam/Opt/Utils/StrUtils.HC` stores files through `Spaces2Tabs`
+  (`Kernel/StrA.HC`): a run of spaces that reaches a tab stop becomes a tab. Terry's
+  files are stored that way.
 
-So `holyc-fmt` fills a real gap: it normalizes the *text* form of `.HC` files
-(which, once exported out of DolDoc, have inconsistent indentation - see below).
+HolyC-fmt lexes strs, char consts, comments and DolDoc cmds, so braces inside strings
+do not fool it, and it never changes any of them.
 
-## The style (measured, not guessed)
+## How close it is
 
-Conventions were measured across all 519 `.HC` files in `reference/TempleOS`:
+Measured on Terry's tree, TempleOS V5.03 as exported to
+[cia-foundation/TempleOS](https://github.com/cia-foundation/TempleOS) at commit
+`c26482b`: 544 `.HC`, `.HH` and `.IN` files.
 
-| rule | data | holyc-fmt |
-| --- | --- | --- |
-| no space after `,` | 98% | enforced (in code) |
-| no spaces around `=` / operators | 100% | **preserved** (not reflowed) |
-| space after `if`/`while`/`for`/`switch` | 100% | `if(`→`if (` |
-| function / bare-block `{` on its own line | 100% | preserved |
-| control-flow `{` on the same line | 100% | `)`/`else`/`do` → ` {` |
-| indent unit | 2 spaces (the `Doc/GuideLines.DD` canonical example & most code) | 2 spaces (or `--tabs`) |
-| `case`/`default` | one level inside `switch` | enforced |
-| goto-labels (`start_over:`) | column 0 | enforced |
-| braceless bodies (`if (x)` ⏎ `foo;`) | indented one level | enforced |
+* 340 come out byte for byte as Terry left them. Version 0.1 matched 141.
+* Every file is a fixed point: formatting the output again changes nothing.
+* No token ever changes. Strs, chars and DolDoc cmds match byte for byte, comments
+  change only in their runs of spaces and tabs, and sprite data after the NUL is kept.
+* Compiled by TempleOS itself and run on the V5.03 disk, it gives the same output as
+  the HolyC-wasm build on 524 of the 525 files the disk shares with the export. The
+  one left, `Demo/AcctExample/Registry.HC`, is a different file on the disk: a saved
+  game time in it differs.
 
-The exported source is genuinely *inconsistent* - the same file mixes tabs and
-spaces (e.g. `Demo/Games/RainDrops.HC` has a `switch` indented with 6 spaces and its
-`case` with a tab). Normalizing that is the main job.
+The other 204 files hold lines Terry typed by hand or never ran his tools over:
 
-## What it does
+* spacing his tools never touch: `, ` (99 lines), `if(` (22), and double spaces before
+  `{` or `else`;
+* whitespace-only lines, and blank lines doubled or at the ends of files;
+* continuation lines he placed by hand, such as function headers at col 2 and
+  second-level continuations typed as a single tab;
+* a few whole files he never reindented.
 
-A single lexical pass that, with full awareness of strings, char-consts, `//` and
-`/* */` comments (so braces/quotes/`$DolDoc$` inside them are ignored):
+## The layout
 
-- **re-indents** every line from brace depth, plus `switch`/`case` handling,
-  braceless-body "hanging" indents, paren/bracket continuation, goto-labels and
-  `#preprocessor` lines forced to column 0;
-- normalizes **`if (` spacing**, **`) {` / `else {`** block-brace spacing, and
-  **`,`** spacing - without touching initializer braces `={1,2,3}`;
-- trims trailing whitespace and collapses runs of blank lines;
-- **preserves tokens exactly** - strings, comments and DolDoc markup are copied
-  byte-for-byte; operator spacing is left as-is (Terry's compact style is already
-  canonical, and reflowing operators needs a full parser to stay correct).
+* Two spaces a level, stored through S2T. `--spaces` writes spaces instead.
+* No token moves to another line. Only the whitespace before and between tokens
+  changes.
+* A function's `{` and its `}` sit at col 0. A control's `{` goes after one space on
+  its line: `if (x) {`, `} else {`, `do {`, `} while (x);`, `try {`, `switch [i] {`.
+* One space after `if`, `for`, `while` and `switch`. No space after a comma. Operator
+  spacing is left as it is (Terry writes `x=y+1`, but telling a unary `*` or `&` from a
+  binary one safely needs a parser).
+* `case` and `default` go 2 in from their `switch`, and their statements 4. The cases
+  between `start:` and `end:` go a level deeper, as in `Kernel/StrPrint.HC`.
+* Goto labels go to col 0.
+* A braceless body goes a level in.
+* A statement that runs on goes 6 spaces past its level, as `EdRICode` puts it, so a
+  first-level statement runs on at col 8: one tab.
+* At the top level, a line that runs on goes to col 8; one that starts with a str goes
+  to col 0; one that starts with a `*` lines up under the first line's `*`
+  (`U8 *a,` then `   *b;`). An `extern` proto ends at its `)`, with no `;`.
+* In a top-level `asm` block, opcodes sit at col 8, and labels, directives and
+  comment-only lines at col 0.
+* A comment on its own line takes the level of the code around it. The line after a
+  `{//` brace comment goes to col 0 and a third to col 2, which is how his reindent
+  left 48 of the 51 three-line brace comments in his tree.
+* Lines that start inside a str or a block comment, and lines that hold only DolDoc,
+  keep their leading space.
+* A `#define` that ends in `\` runs on to the next line, and that line keeps its
+  spaces. A `\` followed by a space does not run on (see `Compiler/Lex.HC`), so that
+  space stays: trimming it would join the next line to the define.
+* Trailing spaces go, runs of blank lines close up to one, blank lines at the start
+  and end go, and the text ends in exactly one newline, as 507 of Terry's 544 files
+  do. Blank lines next to DolDoc stay: they are often the room for a sprite.
 
-## Usage
+## Using it
 
-In **TempleOS / hemu** (the real target):
+### In TempleOS
 
-```holyc
-#include "Fmt"
-Fmt("::/Demo/Games/Life.HC");           // print the formatted source
-Fmt("MyMessy.HC","MyMessy.HC");         // reformat in place (text files only)
+Copy `HolyCFmt.HC` and `FmtUtils.HC` into a directory on the TempleOS disk, `Cd` to it
+and run:
+
+```
+#include "FmtUtils"
+HolyCFmt("*","+r");
 ```
 
-From the **command line** (runs the *real* HolyC formatter, compiled to WASM by the
-sibling `holyc-wasm` compiler - it injects the file straight into WASM
-memory, so DolDoc `$$` is never altered):
+`HolyCFmt(files_find_mask,fu_flags)` is made like Terry's `S2T` and takes the same
+`ST_FILE_UTIL_FLAGS`, but it starts from `+f+F+S` where S2T starts from `+f+F+T`, so
+only source files are touched. It
+prints each file it changes and returns how many. `HolyCFmtBuf(src)` formats a string
+and returns a new one. `fmt_indent` and `fmt_tabs` set the level and the tabs.
+
+TempleOS already has a `Fmt`: it formats a drive (`Kernel/BlkDev/DskFmt.HC`). Version
+0.1 named its command `Fmt` too and shadowed it, so the command is now `HolyCFmt`.
+
+### From a shell
+
+The CLI runs the same `HolyCFmt.HC`, compiled to WebAssembly by HolyC-wasm, which
+must sit beside this repo:
 
 ```sh
-node cli.mjs path/to/File.HC          # print formatted
-node cli.mjs path/to/File.HC -w       # rewrite in place
-node cli.mjs path/to/File.HC --tabs   # indent with tabs
+git clone https://github.com/ParkerrDev/HolyC-wasm ../holyc-wasm
+node cli.mjs File.HC                  # print the formatted source
+node cli.mjs -w A.HC B.HC             # rewrite files in place
+node cli.mjs --spaces --indent=4 F.HC # spaces, 4 a level
 ```
+
+From JavaScript: `await formatSource(src, { tabs: true, indent: 2 })` from `cli.mjs`.
+The file's bytes go straight into the program's memory, so DolDoc `$$` and every
+other byte reach the HolyC as they are. Only the text before the first NUL is
+formatted; the binary tail after it is kept byte for byte.
 
 ## Testing
 
-`holyc-fmt` is verified by *running the actual HolyC* through the `holyc-wasm`
-compiler headless and checking two properties on real TempleOS files:
-
-- **idempotent** - `fmt(fmt(x)) == fmt(x)` (a fixed point), and
-- **token-preserving** - output equals input once whitespace is ignored (it never
-  adds, drops or reorders code).
-
 ```sh
-node test.mjs            # unit cases + 3 real files
-node sweep.mjs 150       # 150 files across Kernel/Compiler/Adam/Demo/Apps
+npm test                 # cases with known answers, and 4 of Terry's files
+npm run sweep            # all 544 of Terry's files
 ```
 
-Latest: **14/14** unit/real tests and **150/150** files clean (0 idempotency
-failures, 0 token changes).
+Both read Terry's tree from `../TempleOS` (or `TOS_DIR`, or the sweep's first
+argument): `git clone https://github.com/cia-foundation/TempleOS ../TempleOS`. The
+sweep fails if any file changes a token, loses its binary tail or is not a fixed
+point.
 
-## Limitations
+## Notes
 
-- **Plain-text HolyC only.** DolDoc files with embedded *binary* (sprites - they
-  contain NUL bytes) are not text; edit those in TempleOS's `Ed`. The CLI refuses
-  files containing NUL.
-- **Operator spacing is preserved, not reflowed** (`a+b` and `a + b` are both left
-  alone). Distinguishing unary/binary/pointer `*`/`-`/`&` safely needs a full parser.
-- Brace *placement* is normalized for spacing but not moved across lines (Terry's
-  source is already 100% conformant, so this only matters for hand-broken input).
+* **The GitHub tree is an export.** It was made with `TOSZ -ascii` (in `Linux/TOSZ.CPP`),
+  which turns SHIFT-SPACE (byte 31) into a space and drops `CH_CURSOR` (byte 5).
+  Terry's S2T makes tabs everywhere, so he typed hard spaces where it must not: in
+  string consts (S2T's own comment says so) and after periods in comments. The export
+  shows those as plain spaces. HolyC-fmt never changes a hard space and never touches
+  a str, so it works on the disk files as they are and needs no hard spaces.
+* **It runs under two compilers.** HolyC-wasm differs from TempleOS's compiler in
+  places: it ignores `goto`, uses C's operator precedence, matches only one value of a
+  `case 0...2:` range, sets `CH_SHIFT_SPACE` to 0xA0 and has no `CH_CURSOR`. So
+  `HolyCFmt.HC` uses no `goto`, no numeric case ranges and no expression whose meaning
+  depends on which precedence is used, and it gives the same output under both.
 
 ## Files
 
-- `HolyCFmt.HC` - the formatter core (pure, I/O-free: `HolyCFmtBuf(src)`), in HolyC.
-- `Fmt.HC` - TempleOS driver (`FileRead`/`FileWrite`), in HolyC.
-- `cli.mjs` - faithful node CLI that runs the HolyC formatter via `holyc-wasm`.
-- `runhc.mjs`, `test.mjs`, `sweep.mjs` - the headless test harness.
-
-## Current verification
-
-The CLI caches compiled formatter modules by validated indent/tab settings while each formatting call receives fresh WASM memory. Tests and the source sweep use the same raw-memory input path as the CLI, preserving DolDoc dollar sequences. The sweep exits unsuccessfully when idempotency, token preservation, or execution fails.
-
-```sh
-TOS_DIR=/path/to/TinkerOS node test.mjs
-TOS_DIR=/path/to/TinkerOS node sweep.mjs 150
-```
+* `HolyCFmt.HC`: the formatter, `HolyCFmtBuf(src)`, with no I/O.
+* `FmtUtils.HC`: the TempleOS command, `HolyCFmt(mask,flags)`.
+* `cli.mjs`: the command line and `formatSource()`.
+* `check.mjs`: the token check that the tests and the sweep share.
+* `test.mjs`, `sweep.mjs`: the tests.
+* `runhc.mjs`: runs any HolyC file headless through HolyC-wasm.

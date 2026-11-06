@@ -1,46 +1,59 @@
-// _sweep.mjs - run the real HolyC formatter over many TempleOS files; assert it is
-// idempotent and token-preserving (only whitespace/layout changes).
-import { readFileSync, readdirSync } from "node:fs";
+// sweep.mjs: run the formatter over Terry's whole tree.
+//
+// Every file must come out with the same tokens and the same binary tail, and must be
+// a fixed point (formatting the output again changes nothing). The sweep also counts
+// the files that come out byte for byte as Terry left them.
+//
+//   git clone https://github.com/cia-foundation/TempleOS ../TempleOS
+//   node sweep.mjs [TEMPLEOS_DIR]
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { formatSource as fmt } from "./cli.mjs";
-const dn = s => s.replace(/[ \t]+/g, "").replace(/\n+/g, "\n").trim();
-const TOS = process.env.TOS_DIR || "../TempleOS-wasm/reference/TempleOS";
-function sources(dir) {
+import { formatSource } from "./cli.mjs";
+import { tokenDiff, splitTail } from "./check.mjs";
+
+const TOS = process.argv[2] || process.env.TOS_DIR || "../TempleOS";
+if (!existsSync(join(TOS, "Kernel"))) {
+  console.error(`no TempleOS tree at ${TOS}: clone https://github.com/cia-foundation/TempleOS there`);
+  process.exit(2);
+}
+
+function walk(dir) {
   const out = [];
-  for (const entry of readdirSync(dir, {withFileTypes:true})) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...sources(path));
-    else if (entry.isFile() && /\.HC$/i.test(entry.name)) out.push(path);
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) {
+      if (e.name !== ".git" && e.name !== "Linux") out.push(...walk(p));
+    } else if (/\.(HC|HH|IN)$/.test(e.name)) out.push(p);
   }
-  return out;
+  return out.sort();
 }
-const all = sources(TOS);
-// spread across the tree, cap size (string-literal path), take a sample
-const N = +(process.argv[2] || 60);
-// skip DolDoc files with embedded BINARY (sprites etc.) - a NUL byte means it is not
-// plain-text HolyC; those are edited in TempleOS's DolDoc editor, out of scope here.
-const pick = all.filter(f => { try { const b = readFileSync(f); return b.length < 14000 && !b.includes(0); } catch { return false; } });
-const step = Math.max(1, (pick.length / N) | 0);
-const files = pick.filter((_, i) => i % step === 0).slice(0, N);
 
-let ok = 0, idemBad = 0, tokBad = 0, err = 0;
-for (const f of files) {
-  const rel = f.slice(TOS.length + 1);
-  let orig;
-  try { orig = readFileSync(f, "latin1"); } catch { continue; }
+let files = 0, same = 0, bad = 0;
+const t0 = Date.now();
+for (const path of walk(TOS)) {
+  const rel = path.slice(TOS.length + 1);
+  const src = readFileSync(path).toString("latin1");
+  files++;
+  let once, twice;
   try {
-    const once = await fmt(orig);
-    const twice = await fmt(once);
-    let bad = false;
-    if (once !== twice) { idemBad++; bad = true; console.log("IDEM ✗", rel); }
-    if (dn(once) !== dn(orig)) {
-      tokBad++; bad = true;
-      const a = dn(once), b = dn(orig); let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++;
-      console.log("TOK  ✗", rel, "@", i, "\n   fmt:", JSON.stringify(a.slice(Math.max(0, i - 30), i + 30)), "\n   org:", JSON.stringify(b.slice(Math.max(0, i - 30), i + 30)));
-    }
-    if (!bad) ok++;
-  } catch (e) { err++; console.log("ERR  ", rel, String(e.message).slice(0, 80)); }
+    once = await formatSource(src);
+    twice = await formatSource(once);
+  } catch (e) {
+    bad++;
+    console.log(`ERROR  ${rel}: ${e.message}`);
+    continue;
+  }
+  if (once === src) same++;
+  const problems = [];
+  if (twice !== once) problems.push("not a fixed point");
+  const d = tokenDiff(splitTail(src)[0], splitTail(once)[0]);
+  if (d !== -1) problems.push(`token ${d.at} changed: ${JSON.stringify(d.a)} became ${JSON.stringify(d.b)}`);
+  if (splitTail(src)[1] !== splitTail(once)[1]) problems.push("binary tail changed");
+  if (problems.length) {
+    bad++;
+    console.log(`FAIL   ${rel}: ${problems.join("; ")}`);
+  }
 }
-console.log(`\n${files.length} files: ${ok} clean, ${idemBad} idem-fail, ${tokBad} token-fail, ${err} error`);
-
-process.exitCode = idemBad || tokBad || err ? 1 : 0;
+const secs = ((Date.now() - t0) / 1000).toFixed(1);
+console.log(`${files} files in ${secs} s: ${same} byte for byte as Terry left them, ${bad} failed`);
+process.exitCode = bad ? 1 : 0;
