@@ -33,10 +33,10 @@ Measured on Terry's tree, TempleOS V5.03 as exported to
 * Every file is a fixed point: formatting the output again changes nothing.
 * No token ever changes. Strs, chars and DolDoc cmds match byte for byte, comments
   change only in their runs of spaces and tabs, and sprite data after the NUL is kept.
-* Compiled by TempleOS itself and run on the V5.03 disk, it gives the same output as
-  the HolyC-wasm build on 524 of the 525 files the disk shares with the export. The
-  one left, `Demo/AcctExample/Registry.HC`, is a different file on the disk: a saved
-  game time in it differs.
+* The same 544 input files run through the formatter on stock V5.03 in QEMU/KVM
+  have identical output lengths and FNV-1a hashes to the WASM build, including
+  binary tails. This checks the same bytes on both targets instead of comparing
+  an exported GitHub file against a different saved file on the installed disk.
 
 The other 204 files hold lines Terry typed by hand or never ran his tools over:
 
@@ -96,7 +96,9 @@ HolyCFmt("*","+r");
 `ST_FILE_UTIL_FLAGS`, but it starts from `+f+F+S` where S2T starts from `+f+F+T`, so
 only source files are touched. It
 prints each file it changes and returns how many. `HolyCFmtBuf(src)` formats a string
-and returns a new one. `fmt_indent` and `fmt_tabs` set the level and the tabs.
+and returns a new one to free. Its optional `indent` and `tabs` arguments default
+  to `2` and `TRUE`. The file command keeps `fmt_indent` and `fmt_tabs` in
+  `FmtUtils.HC`; each buffer call owns its options.
 
 TempleOS already has a `Fmt`: it formats a drive (`Kernel/BlkDev/DskFmt.HC`). Version
 0.1 named its command `Fmt` too and shadowed it, so the command is now `HolyCFmt`.
@@ -104,7 +106,7 @@ TempleOS already has a `Fmt`: it formats a drive (`Kernel/BlkDev/DskFmt.HC`). Ve
 ### From a shell
 
 The CLI runs the same `HolyCFmt.HC`, compiled to WebAssembly by HolyC-wasm, which
-must sit beside this repo:
+must sit beside this repo or be named by `HOLYC_WASM`:
 
 ```sh
 git clone https://github.com/ParkerrDev/HolyC-wasm ../holyc-wasm
@@ -121,8 +123,9 @@ formatted; the binary tail after it is kept byte for byte.
 ## Testing
 
 ```sh
-npm test                 # cases with known answers, and 4 of Terry's files
-npm run sweep            # all 544 of Terry's files
+npm test                 # known layouts, byte preservation, large-input reuse
+npm run sweep            # tokens, tails and fixed points over all 544 files
+npm run test:native      # same files and file command in stock V5.03 QEMU
 ```
 
 Both read Terry's tree from `../TempleOS` (or `TOS_DIR`, or the sweep's first
@@ -138,17 +141,24 @@ point.
   string consts (S2T's own comment says so) and after periods in comments. The export
   shows those as plain spaces. HolyC-fmt never changes a hard space and never touches
   a str, so it works on the disk files as they are and needs no hard spaces.
-* **It runs under two compilers.** HolyC-wasm differs from TempleOS's compiler in
-  places: it ignores `goto`, uses C's operator precedence, matches only one value of a
-  `case 0...2:` range, sets `CH_SHIFT_SPACE` to 0xA0 and has no `CH_CURSOR`. So
-  `HolyCFmt.HC` uses no `goto`, no numeric case ranges and no expression whose meaning
-  depends on which precedence is used, and it gives the same output under both.
+* **The buffer path is shared.** `Fmt.js` compiles strictly and calls exported
+  native `MAlloc`, `HolyCFmtBuf`, `StrLen` and `Free`. It copies output bytes
+  directly, so allocation growth cannot overwrite a fixed input address and
+  console rendering cannot transform the result. One initialized instance serves
+  consecutive calls. The byte API preserves CP437 and binary tails; the text API
+  preserves the editor's UTF-16 units without losing non-ASCII characters.
+* **Independent checks stay independent.** The test token comparison is separate
+  from `FmtLex`, so a formatter lexer regression is not its own oracle. Known
+  answers, repeated-format fixed points, full native comparisons and large input
+  allocation reuse check different failure modes. `native.mjs` uses HolyC-wasm's
+  pinned QEMU oracle; follow `tests/oracle/README.md` there for its disk dependencies.
+  Results and emulator provenance are written to `.oracle/native.json`.
 
 ## Files
 
 * `HolyCFmt.HC`: the formatter, `HolyCFmtBuf(src)`, with no I/O.
 * `FmtUtils.HC`: the TempleOS command, `HolyCFmt(mask,flags)`.
-* `cli.mjs`: the command line and `formatSource()`.
-* `check.mjs`: the token check that the tests and the sweep share.
-* `test.mjs`, `sweep.mjs`: the tests.
-* `runhc.mjs`: runs any HolyC file headless through HolyC-wasm.
+* `Fmt.js`: shared byte/text driver over native allocations and returned buffers.
+* `cli.mjs`: filesystem input/output and `formatBytes()` / `formatSource()`.
+* `check.mjs`: independent token and binary-tail comparison for tests.
+* `test.mjs`, `buffers.test.mjs`, `sweep.mjs`, `native.mjs`: behavioral checks.

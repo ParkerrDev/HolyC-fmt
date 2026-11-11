@@ -1,9 +1,3 @@
-// test.mjs: run HolyCFmt.HC, compiled by HolyC-wasm, on cases with known answers.
-//
-// Each case is a messy input and the layout Terry's own tools would have left. Every
-// answer is also checked to be a fixed point. If Terry's tree is cloned beside this
-// repo (or TOS_DIR names it), a few of his files are checked as well; sweep.mjs
-// checks all of them.
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { formatSource as fmt } from "./cli.mjs";

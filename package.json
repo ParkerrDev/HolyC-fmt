@@ -3,12 +3,18 @@
   "version": "0.2.0",
   "description": "A formatter for HolyC, written in HolyC, that lays code out the way Terry A. Davis's own tools left TempleOS.",
   "type": "module",
-  "bin": { "holyc-fmt": "cli.mjs" },
+  "bin": {
+    "holyc-fmt": "cli.mjs"
+  },
   "scripts": {
-    "test": "node test.mjs",
-    "sweep": "node sweep.mjs"
+    "test": "node test.mjs && node check.test.mjs && node buffers.test.mjs",
+    "sweep": "node sweep.mjs",
+    "test:native": "node native.mjs"
   },
   "license": "MIT",
   "author": "ParkerrDev",
-  "repository": { "type": "git", "url": "https://github.com/ParkerrDev/HolyC-fmt.git" }
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ParkerrDev/HolyC-fmt.git"
+  }
 }

@@ -1,11 +1,3 @@
-// sweep.mjs: run the formatter over Terry's whole tree.
-//
-// Every file must come out with the same tokens and the same binary tail, and must be
-// a fixed point (formatting the output again changes nothing). The sweep also counts
-// the files that come out byte for byte as Terry left them.
-//
-//   git clone https://github.com/cia-foundation/TempleOS ../TempleOS
-//   node sweep.mjs [TEMPLEOS_DIR]
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { formatSource } from "./cli.mjs";

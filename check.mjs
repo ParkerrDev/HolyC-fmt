@@ -1,63 +1,84 @@
-// check.mjs: the checks that test.mjs and sweep.mjs share.
-//
-// A formatter may only move whitespace. tokens() cuts HolyC into what the compiler
-// sees, plus its comments, so two texts can be compared token for token. Strs, chars
-// and DolDoc cmds must match byte for byte. A str runs to its closing quote even
-// across lines, as in Terry's LexInStr. Inside a comment only the runs of spaces and
-// tabs may change, since S2T changes them there just as Terry's did.
+const OPS=["<<=",">>=","...","->","++","--","<<",">>","<=",">=","==","!=","&&",
+  "||","^^","+=","-=","*=","/=","%=","&=","|=","^=","::"],
+  WORD=/[A-Za-z0-9_\x80-\xff]/;
 
-const OPS = ["<<=", ">>=", "...", "->", "++", "--", "<<", ">>", "<=", ">=", "==", "!=", "&&",
-  "||", "^^", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "::"];
-const WORD = /[A-Za-z0-9_\x80-\xff]/;
+function CommentKey(source)
+{//DolDoc inside a comment is protected even when nearby spaces become tabs.
+  let out="",i=0,start=0,end,part;
+  while (i<source.length) {
+    if (source[i]=="$" && source[i+1]=="$") i+=2;
+    else if (source[i]=="$" && (end=source.indexOf("$",i+1))>=0) {
+      part=source.slice(start,i).replace(/[ \t]+/g," ").replace(/ \n/g,"\n");
+      out+=part+source.slice(i,end+1);
+      start=i=end+1;
+    } else i++;
+  }
+  return out+source.slice(start).replace(/[ \t]+/g," ")
+    .replace(/ \n/g,"\n").trimEnd();
+}
 
-export function tokens(src) {
-  const out = [];
-  let i = 0;
-  const n = src.length;
-  while (i < n) {
-    const c = src[i];
-    if (c === " " || c === "\t" || c === "\r" || c === "\n") { i++; continue; }
-    let j = i + 1;
-    if (src.startsWith("//", i)) {
-      j = src.indexOf("\n", i);
-      if (j < 0) j = n;
-      out.push("C" + src.slice(i, j).replace(/[ \t]+/g, " ").trimEnd());
-    } else if (src.startsWith("/*", i)) {
-      j = src.indexOf("*/", i + 2);
-      j = j < 0 ? n : j + 2;
-      out.push("C" + src.slice(i, j).replace(/[ \t]+/g, " ").replace(/ \n/g, "\n"));
-    } else if (c === '"' || c === "'") {
-      while (j < n && src[j] !== c) j += src[j] === "\\" ? 2 : 1;
-      j = Math.min(j + 1, n);
-      out.push("S" + src.slice(i, j));
-    } else if (c === "$") {
-      j = src.indexOf("$", i + 1);
-      j = j < 0 ? n : j + 1;
-      out.push("D" + src.slice(i, j));
-    } else if (WORD.test(c)) {
-      while (j < n && WORD.test(src[j])) j++;
-      out.push("W" + src.slice(i, j));
-    } else {
-      const op = OPS.find((o) => src.startsWith(o, i));
-      if (op) j = i + op.length;
-      out.push("O" + src.slice(i, j));
+export function tokens(source)
+{
+  const out=[];
+  let i=0,j,n=source.length,c,depth,end,op;
+  while (i<n) {
+    c=source[i];
+    if (/[ \t\r\n\x05\x1f]/.test(c)) i++;
+    else {
+      j=i+1;
+      if (source.startsWith("//",i)) {
+        j=source.indexOf("\n",i);
+        if (j<0) j=n;
+        out.push("C"+CommentKey(source.slice(i,j)));
+      } else if (source.startsWith("/*",i)) {
+        j=i+2;depth=1;
+        while (j<n && depth) {
+          if (source.startsWith("/*",j)) {depth++;j+=2;}
+          else if (source.startsWith("*/",j)) {depth--;j+=2;}
+          else j++;
+        }
+        out.push("C"+CommentKey(source.slice(i,j)));
+      } else if (c=='"' || c=="'") {
+        while (j<n && source[j]!=c) {
+          if (source[j]=="\\") j+=2;
+          else if (c=='"' && source[j]=="$" &&
+              (end=source.indexOf("$",j+1))>=0) j=end+1;
+          else j++;
+        }
+        j=Math.min(j+1,n);
+        out.push("S"+source.slice(i,j));
+      } else if (c=="$") {
+        j=source.indexOf("$",i+1);
+        if (j<0) j=n;
+        else j++;
+        out.push("D"+source.slice(i,j));
+      } else if (WORD.test(c)) {
+        while (j<n && WORD.test(source[j])) j++;
+        out.push("W"+source.slice(i,j));
+      } else {
+        for (op of OPS)
+          if (source.startsWith(op,i)) {j=i+op.length;break;}
+        out.push("O"+source.slice(i,j));
+      }
+      i=j;
     }
-    i = j;
   }
   return out;
 }
 
-// Where two texts first differ in their tokens, or -1 when they hold the same ones.
-export function tokenDiff(a, b) {
-  const ta = tokens(a), tb = tokens(b);
-  const m = Math.min(ta.length, tb.length);
-  for (let i = 0; i < m; i++) if (ta[i] !== tb[i]) return { at: i, a: ta[i], b: tb[i] };
-  if (ta.length !== tb.length) return { at: m, a: ta[m], b: tb[m] };
+export function tokenDiff(a,b)
+{
+  const ta=tokens(a),tb=tokens(b),count=Math.min(ta.length,tb.length);
+  let i;
+  for (i=0;i<count;i++)
+    if (ta[i]!=tb[i]) return {at:i,a:ta[i],b:tb[i]};
+  if (ta.length!=tb.length) return {at:count,a:ta[count],b:tb[count]};
   return -1;
 }
 
-// The text before the first NUL, and the binary tail from it on.
-export function splitTail(src) {
-  const nul = src.indexOf("\0");
-  return nul < 0 ? [src, ""] : [src.slice(0, nul), src.slice(nul)];
+export function splitTail(source)
+{
+  const zero=source.indexOf("\0");
+  if (zero<0) return [source,""];
+  return [source.slice(0,zero),source.slice(zero)];
 }

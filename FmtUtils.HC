@@ -1,8 +1,7 @@
-//TempleOS cmd for $LK,"HolyCFmtBuf",A="MN:HolyCFmtBuf"$, made like $LK,"S2T",A="MN:S2T"$.
-//Copy this dir to the TempleOS disk, then
-//  #include "FmtUtils"
-//  HolyCFmt("*","+r");
 #include "HolyCFmt"
+
+I64 fmt_indent=2;
+Bool fmt_tabs=TRUE;
 
 #help_index "Cmd Line (Typically)"
 
@@ -14,7 +13,7 @@ Bool HolyCFmtFile(U8 *filename)
   if (!src)
     return FALSE;
   len=StrLen(src);
-  res=HolyCFmtBuf(src);
+  res=HolyCFmtBuf(src,fmt_indent,fmt_tabs);
   if (StrCmp(res,src)) {
     len2=StrLen(res);
     buf=MAlloc(len2+size-len);

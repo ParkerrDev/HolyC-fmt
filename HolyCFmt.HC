@@ -1,13 +1,3 @@
-//HolyC formatter, in HolyC.
-//It lays code out the way Terry's own tools left his tree. The levels
-//come from a port of "Reindent HolyC Fun", $LK,"EdRICode",A="MN:EdRICode"$,
-//two spaces a level, and each line is stored through a port of
-//$LK,"Spaces2Tabs",A="MN:Spaces2Tabs"$, the way $LK,"S2T",A="MN:S2T"$ stores
-//it. Strs, char consts and DolDoc cmds are never chged.
-
-I64 fmt_indent=2;	//Spaces a level, like C_INDENT_SPACES.
-Bool fmt_tabs=TRUE;	//S2T the output. FALSE gives spaces.
-
 #define FT_EOF		0
 #define FT_IDENT	0x100
 #define FT_VAL		0x101	//Num, str, char or $$IB$$.
@@ -116,6 +106,8 @@ class CFmtTok
 
 class CFmt
 {
+  I64 indent;
+  Bool tabs;
   U8 *src,
 	*cls,		//A byte each, like $LK,"FC_CODE",A="MN:FC_CODE"$.
 	*lb,*lp,	//Line buf, and which bytes of it are protected.
@@ -164,7 +156,7 @@ U0 FmtCls(CFmt *f,I64 i,I64 j,I64 c)
 }
 
 U0 FmtTokAdd(CFmt *f,I64 type,I64 kw,I64 start,I64 end,I64 y,I64 rec_y)
-{//The first pass only counts.
+{
   CFmtTok *t;
   if (f->toks) {
     t=&f->toks[f->tok_cnt];
@@ -207,7 +199,7 @@ U0 FmtDolMark(CFmt *f,I64 i,I64 e)
 }
 
 I64 FmtCmt(CFmt *f,I64 i)
-{//Runs to the end of the line.
+{
   U8 *src=f->src;
   I64 j=i;
   while (src[j] && src[j]!='\n')
@@ -390,7 +382,7 @@ I64 FmtOp(CFmt *f,I64 i)
 }
 
 U0 FmtLex(CFmt *f)
-{//Run twice. The first time only counts the toks.
+{
   U8 *src=f->src;
   I64 i=0,j,y,ch;
   f->tok_cnt=0;
@@ -405,8 +397,8 @@ U0 FmtLex(CFmt *f)
       case CH_SPACE:
       case '\t':
       case '\r':
-      case 0x05:	//CH_CURSOR
-      case 0x1F:	//CH_SHIFT_SPACE
+      case CH_CURSOR:
+      case CH_SHIFT_SPACE:
 	i++;
 	break;
       case '"':
@@ -650,7 +642,7 @@ U0 FmtRIApply(CFmt *f,I64 y1,I64 y2)
   I64 y;
   for (y=y1;y<=y2;y++)
     if (f->lvl[y]>>8==f->run)
-      f->col[y]=(f->lvl[y]&255)*fmt_indent;
+      f->col[y]=(f->lvl[y]&255)*f->indent;
     else
       f->col[y]=0;
 }
@@ -680,7 +672,7 @@ I64 FmtStarCol(CFmt *f,I64 p)
 U0 FmtContLines(CFmt *f,I64 p,I64 y1,I64 y2)
 {//Later lines of the top-level item at tok p go a tab in. A line that
 //starts with a str goes to 0, and one that starts with a '*' goes under
-  //the first line's.
+//the first line's.
   I64 y,sc=FmtStarCol(f,p);
   CFmtTok *t;
   for (y=y1;y<=y2;y++)
@@ -846,7 +838,7 @@ I64 FmtTopStmt(CFmt *f,I64 p)
 	    case FBK_ASM:
 	      return FmtAsmBlk(f,p);
 	    case FBK_CLASS:
-	      p=FmtRIBlk(f,p)-1;	//The loop adds the one back.
+	      p=FmtRIBlk(f,p)-1;
 	      y=FmtLastY(f,p+1);
 	      break;
 	    case FBK_INIT:
@@ -916,7 +908,7 @@ I64 FmtGap(CFmt *f,CFmtTok *t,CFmtTok *u)
       return 1;
   }
   if ((t->type==')' || t->type==']') && u->type=='{')
-    return 1;	//"switch [i] {" too.
+    return 1;
   if (t->type=='}' &&
 	(u->kw==FKW_ELSE || u->kw==FKW_CATCH || u->kw==FKW_WHILE))
     return 1;
@@ -1054,7 +1046,7 @@ U0 FmtLinePut(CFmt *f,I64 y)
   while (f->lb_len>0 && !f->lp[f->lb_len-1] &&
 	(f->lb[f->lb_len-1]==CH_SPACE || f->lb[f->lb_len-1]=='\t'))
     f->lb_len--;
-  if (fmt_tabs)
+  if (f->tabs)
     FmtS2T(f);
   else
     FmtT2S(f);
@@ -1153,10 +1145,12 @@ U0 FmtDel(CFmt *f)
   Free(f);
 }
 
-public U8 *HolyCFmtBuf(U8 *src)
+public U8 *HolyCFmtBuf(U8 *src,I64 indent=2,Bool tabs=TRUE)
 {//Returns src laid out like Terry's tree, in a new buf. Free it.
   CFmt *f=CAlloc(sizeof(CFmt));
   U8 *res;
+  f->indent=indent;
+  f->tabs=tabs;
   FmtInit(f,src);
   FmtTop(f);
   FmtKeep(f);
@@ -1166,12 +1160,4 @@ public U8 *HolyCFmtBuf(U8 *src)
   f->out=NULL;
   FmtDel(f);
   return res;
-}
-
-public U0 HolyCFmtPrint(U8 *src)
-{//For the HolyC-wasm cmd line tool. It prints raw bytes.
-  U8 *res=HolyCFmtBuf(src),*ptr=res;
-  while (*ptr)
-    PutChars(*ptr++);
-  Free(res);
 }
