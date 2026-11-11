@@ -7,9 +7,18 @@ import {FmtNew,FmtText} from "./Fmt.js";
 const root=resolve(process.env.HOLYC_WASM || "../holyc-wasm"),
   {compileHolyC}=await import(pathToFileURL(join(root,"src/compiler.js"))),
   {createHost}=await import(pathToFileURL(join(root,"src/runtime/host.js")));
-let host;
+let host,allocations=0,fail_at=0;
 const Format=await FmtNew(await readFile(new URL("HolyCFmt.HC",import.meta.url),"latin1"),
-  compileHolyC,function (options) {return host=createHost(options);}),
+  compileHolyC,function (options) {
+    host=createHost(options);
+    const allocate=host.env.__malloc;
+    host.env.__malloc=function (size) {
+      allocations++;
+      if (allocations==fail_at) return 0n;
+      return allocate(size);
+    };
+    return host;
+  }),
   high=Buffer.from(Array.from({length:128},(_,i)=>i+128)),
   tail=Buffer.from(Array.from({length:256},(_,i)=>i)),
   source=Buffer.concat([Buffer.from('U0 Bytes()\n{\n"'),high,
@@ -18,6 +27,17 @@ const Format=await FmtNew(await readFile(new URL("HolyCFmt.HC",import.meta.url),
     Buffer.from('\x1f\x05";\n}\n'),tail]);
 assert.deepEqual(Buffer.from(Format(source)),expected);
 assert.deepEqual(Buffer.from(Format(expected)),expected);
+allocations=0;
+Format(source);
+const allocation_count=allocations,heap=host.state.heapPtr;
+for (fail_at=1;fail_at<=allocation_count;fail_at++) {
+  allocations=0;
+  assert.throws(()=>Format(source),error=>error instanceof WebAssembly.Exception);
+  assert.equal(host.state.heapPtr,heap,
+    "A failed allocation releases every buffer acquired before it.");
+}
+fail_at=0;
+assert.deepEqual(Buffer.from(Format(source)),expected,"Formatting recovers after allocation failure.");
 assert.deepEqual(Format(new Uint8Array()),new Uint8Array());
 assert.throws(()=>Format("not bytes"),/Uint8Array/);
 assert.throws(()=>Format(source,{tabs:1}),/boolean/);

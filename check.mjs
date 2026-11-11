@@ -1,6 +1,8 @@
 const OPS=["<<=",">>=","...","->","++","--","<<",">>","<=",">=","==","!=","&&",
   "||","^^","+=","-=","*=","/=","%=","&=","|=","^=","::"],
-  WORD=/[A-Za-z0-9_\x80-\xff]/;
+  WORD=/[A-Za-z0-9_\x80-\xff]/,
+  NUMBER=new RegExp("^(?:[0-9][xX][0-9a-fA-F]*|[0-9][bB][01]*|"+
+    "(?:[0-9]+(?:\\.(?!\\.)[0-9]*)?|\\.[0-9]+)(?:[eE]-?[0-9]*)?)");
 
 function CommentKey(source)
 {//DolDoc inside a comment is protected even when nearby spaces become tabs.
@@ -52,6 +54,10 @@ export function tokens(source)
         if (j<0) j=n;
         else j++;
         out.push("D"+source.slice(i,j));
+      } else if (/[0-9]/.test(c) || c=="." && /[0-9]/.test(source[i+1] || "")) {
+        const number=NUMBER.exec(source.slice(i));
+        j=i+number[0].length;
+        out.push("N"+number[0]);
       } else if (WORD.test(c)) {
         while (j<n && WORD.test(source[j])) j++;
         out.push("W"+source.slice(i,j));

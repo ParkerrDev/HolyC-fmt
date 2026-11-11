@@ -150,7 +150,9 @@ point.
 * **Independent checks stay independent.** The test token comparison is separate
   from `FmtLex`, so a formatter lexer regression is not its own oracle. Known
   answers, repeated-format fixed points, full native comparisons and large input
-  allocation reuse check different failure modes. `native.mjs` uses HolyC-wasm's
+  allocation reuse check different failure modes. Native and WASM fault injection
+  verify cleanup after each allocation failure and successful retry; the native
+  file command must not count or report a write when FileWrite returns zero. `native.mjs` uses HolyC-wasm's
   pinned QEMU oracle; follow `tests/oracle/README.md` there for its disk dependencies.
   Results and emulator provenance are written to `.oracle/native.json`.
 
@@ -161,4 +163,4 @@ point.
 * `Fmt.js`: shared byte/text driver over native allocations and returned buffers.
 * `cli.mjs`: filesystem input/output and `formatBytes()` / `formatSource()`.
 * `check.mjs`: independent token and binary-tail comparison for tests.
-* `test.mjs`, `buffers.test.mjs`, `sweep.mjs`, `native.mjs`: behavioral checks.
+* `test.mjs`, `check.test.mjs`, `buffers.test.mjs`, `sweep.mjs`, `native.mjs`: behavioral checks.

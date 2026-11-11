@@ -1151,13 +1151,16 @@ public U8 *HolyCFmtBuf(U8 *src,I64 indent=2,Bool tabs=TRUE)
   U8 *res;
   f->indent=indent;
   f->tabs=tabs;
-  FmtInit(f,src);
-  FmtTop(f);
-  FmtKeep(f);
-  FmtGaps(f);
-  FmtOut(f);
-  res=f->out;
-  f->out=NULL;
+  try {
+    FmtInit(f,src);
+    FmtTop(f);
+    FmtKeep(f);
+    FmtGaps(f);
+    FmtOut(f);
+    res=f->out;
+    f->out=NULL;
+  } catch
+    FmtDel(f);
   FmtDel(f);
   return res;
 }

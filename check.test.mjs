@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import {tokenDiff} from "./check.mjs";
 
 for (const [before,after] of [
+  ['F64 x=1.25;','F64 x=1 . 25;'],
+  ['F64 x=1e-2;','F64 x=1e - 2;'],
+  ['F64 x=1.;','F64 x=1 .;'],
+  ['F64 x=1e;','F64 x=1 e;'],
+  ['F64 x=.25;','F64 x=. 25;'],
   ['I64 a,b;','I64 a,c;'],
   ['a + + b;','a ++ b;'],
   ['a b;','ab;'],
@@ -14,6 +19,7 @@ for (const [before,after] of [
   ['"$LK,"a  b"$";','"$LK,"a b"$";']
 ]) assert.notEqual(tokenDiff(before,after),-1,JSON.stringify([before,after]));
 for (const [before,after] of [
+  ['F64 x=1e+2;','F64 x=1e + 2;'],
   ['U0 F()\n{\nx++;\n}\n','U0 F()\n{\n  x++;\n}\n'],
   ['/* a\t /* b */ " c */\nI64 x;','/* a  /* b */ " c */\n I64 x;'],
   ['//before   $LK,"a  b"$   after','//before\t$LK,"a  b"$\tafter'],
