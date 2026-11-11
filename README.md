@@ -96,9 +96,10 @@ HolyCFmt("*","+r");
 `ST_FILE_UTIL_FLAGS`, but it starts from `+f+F+S` where S2T starts from `+f+F+T`, so
 only source files are touched. It
 prints each file it changes and returns how many. `HolyCFmtBuf(src)` formats a string
-and returns a new one to free. Its optional `indent` and `tabs` arguments default
-  to `2` and `TRUE`. The file command keeps `fmt_indent` and `fmt_tabs` in
-  `FmtUtils.HC`; each buffer call owns its options.
+and returns a new one to free. It reads `fmt_indent` and `fmt_tabs` (initially
+`2` and `TRUE`), preserving native callers that set those globals.
+`HolyCFmtBufOpts(src,indent,tabs)` takes explicit options; each formatting pass
+owns its settings. The JavaScript driver calls this explicit version.
 
 TempleOS already has a `Fmt`: it formats a drive (`Kernel/BlkDev/DskFmt.HC`). Version
 0.1 named its command `Fmt` too and shadowed it, so the command is now `HolyCFmt`.

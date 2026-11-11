@@ -1,7 +1,7 @@
 export async function FmtNew(source,compileHolyC,createHost)
 {//Runs the native formatter over byte strings, including binary DolDoc tails.
   const compiled=compileHolyC(source,{filename:"HolyCFmt.HC",lenient:false,
-    resilient:false,exports:["HolyCFmtBuf","MAlloc","Free","StrLen"]}),
+    resilient:false,exports:["HolyCFmtBufOpts","MAlloc","Free","StrLen"]}),
     host=createHost({}),
     {instance}=await WebAssembly.instantiate(compiled.bytes,{env:host.env}),
     fn=instance.exports;
@@ -26,7 +26,7 @@ export async function FmtNew(source,compileHolyC,createHost)
       memory=new Uint8Array(fn.memory.buffer);
       memory.set(source.subarray(0,size),Number(input));
       memory[Number(input)+size]=0;
-      output=fn.HolyCFmtBuf(input,BigInt(indent),BigInt(tabs));
+      output=fn.HolyCFmtBufOpts(input,BigInt(indent),BigInt(tabs));
       if (!output) throw new Error("Not enough memory for the formatted source.");
       length=Number(fn.StrLen(output));
       result=new Uint8Array(length+source.length-size);

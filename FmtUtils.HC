@@ -1,8 +1,5 @@
 #include "HolyCFmt"
 
-I64 fmt_indent=2;
-Bool fmt_tabs=TRUE;
-
 #help_index "Cmd Line (Typically)"
 
 Bool HolyCFmtFile(U8 *filename)
@@ -14,7 +11,7 @@ Bool HolyCFmtFile(U8 *filename)
     return FALSE;
   try {
     len=StrLen(src);
-    res=HolyCFmtBuf(src,fmt_indent,fmt_tabs);
+    res=HolyCFmtBuf(src);
     if (StrCmp(res,src)) {
       len2=StrLen(res);
       buf=MAlloc(len2+size-len);

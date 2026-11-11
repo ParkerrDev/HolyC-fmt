@@ -72,6 +72,9 @@ U8 *bytes=FileRead("WRITE.HC",&size);
 for (i=0;i<size;i++) hash=(hash^bytes[i])*0x100000001B3;
 "CMD:%d:%d:%d:%016X\n",changed,again,size,hash;
 Free(bytes);
+U8 *defaults=HolyCFmtBuf("U0 Test()\n{\nx;\n}\n");
+"DEFAULT:%d\n",!StrCmp(defaults,"U0 Test()\n{\n    x;\n}\n");
+Free(defaults);
 `,reject=String.raw`
 #exe {Cd("C:/ORACLE");}
 I64 write_attempts=0;
@@ -163,6 +166,7 @@ assert.deepEqual(result.results[0].out.trim().split("\n"),expected);
 assert.equal(result.results[1].except,"");
 assert(result.results[1].out.includes("CMD:1:0:"+command_expected.length+":"+
   command_hash.toString(16).toUpperCase().padStart(16,"0")),result.results[1].out);
+assert(result.results[1].out.includes("DEFAULT:1\n"),result.results[1].out);
 let source_hash=0xCBF29CE484222325n;
 for (const byte of sample)
   source_hash=BigInt.asUintN(64,(source_hash^BigInt(byte))*0x100000001B3n);

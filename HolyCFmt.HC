@@ -1,3 +1,6 @@
+I64 fmt_indent=2;
+Bool fmt_tabs=TRUE;
+
 #define FT_EOF		0
 #define FT_IDENT	0x100
 #define FT_VAL		0x101	//Num, str, char or $$IB$$.
@@ -1145,7 +1148,7 @@ U0 FmtDel(CFmt *f)
   Free(f);
 }
 
-public U8 *HolyCFmtBuf(U8 *src,I64 indent=2,Bool tabs=TRUE)
+public U8 *HolyCFmtBufOpts(U8 *src,I64 indent,Bool tabs)
 {//Returns src laid out like Terry's tree, in a new buf. Free it.
   CFmt *f=CAlloc(sizeof(CFmt));
   U8 *res;
@@ -1163,4 +1166,9 @@ public U8 *HolyCFmtBuf(U8 *src,I64 indent=2,Bool tabs=TRUE)
     FmtDel(f);
   FmtDel(f);
   return res;
+}
+
+public U8 *HolyCFmtBuf(U8 *src)
+{//Use the current command defaults, not values captured when compiled.
+  return HolyCFmtBufOpts(src,fmt_indent,fmt_tabs);
 }
