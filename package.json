@@ -7,7 +7,7 @@
     "holyc-fmt": "cli.mjs"
   },
   "scripts": {
-    "test": "node test.mjs && node check.test.mjs && node buffers.test.mjs",
+    "test": "node test.mjs && node check.test.mjs && node buffers.test.mjs && node cli.test.mjs",
     "sweep": "node sweep.mjs",
     "test:native": "node native.mjs"
   },

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import {readFileSync,writeFileSync} from "node:fs";
+import {existsSync,readFileSync,realpathSync,writeFileSync} from "node:fs";
 import {resolve} from "node:path";
-import {pathToFileURL} from "node:url";
+import {fileURLToPath,pathToFileURL} from "node:url";
 import {FmtNew,FmtText} from "./Fmt.js";
 
 const compiler_root=pathToFileURL(resolve(process.env.HOLYC_WASM ||
@@ -39,7 +39,8 @@ export async function formatSource(source,options)
   return FmtText(await FmtLoad(),source,options);
 }
 
-if (process.argv[1] && import.meta.url==pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && existsSync(process.argv[1]) &&
+    realpathSync(process.argv[1])==realpathSync(fileURLToPath(import.meta.url))) {
   const args=process.argv.slice(2),files=[],options={tabs:true,indent:2};
   let write=false;
   for (const arg of args) {
