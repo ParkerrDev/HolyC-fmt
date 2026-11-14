@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import {resolve,join} from "node:path";
 import {pathToFileURL} from "node:url";
-import {FmtNew,FmtText} from "./Fmt.js";
+import {FmtNew,FmtText,FMT_EXPORTS} from "./Fmt.js";
 
 const root=resolve(process.env.HOLYC_WASM || "../holyc-wasm"),
   {compileHolyC}=await import(pathToFileURL(join(root,"src/compiler.js"))),
   {createHost}=await import(pathToFileURL(join(root,"src/runtime/host.js")));
 let host,allocations=0,fail_at=0;
-const Format=await FmtNew(await readFile(new URL("HolyCFmt.HC",import.meta.url),"latin1"),
-  compileHolyC,function (options) {
+const compiled=compileHolyC(await readFile(new URL("HolyCFmt.HC",import.meta.url),"latin1"),
+  {filename:"HolyCFmt.HC",lenient:false,resilient:false,exports:FMT_EXPORTS}),
+  Format=await FmtNew(compiled.bytes,function (options) {
     host=createHost(options);
     const allocate=host.env.__malloc;
     host.env.__malloc=function (size) {

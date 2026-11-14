@@ -1,9 +1,9 @@
-export async function FmtNew(source,compileHolyC,createHost)
+export const FMT_EXPORTS=["HolyCFmtBufOpts","MAlloc","Free","StrLen"];
+
+export async function FmtNew(bytes,createHost)
 {//Runs the native formatter over byte strings, including binary DolDoc tails.
-  const compiled=compileHolyC(source,{filename:"HolyCFmt.HC",lenient:false,
-    resilient:false,exports:["HolyCFmtBufOpts","MAlloc","Free","StrLen"]}),
-    host=createHost({}),
-    {instance}=await WebAssembly.instantiate(compiled.bytes,{env:host.env}),
+  const host=createHost({}),
+    {instance}=await WebAssembly.instantiate(bytes,{env:host.env}),
     fn=instance.exports;
   host.attach(instance);
   fn.__main();

@@ -2,7 +2,7 @@
 import {existsSync,readFileSync,realpathSync,writeFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {fileURLToPath,pathToFileURL} from "node:url";
-import {FmtNew,FmtText} from "./Fmt.js";
+import {FmtNew,FmtText,FMT_EXPORTS} from "./Fmt.js";
 
 const compiler_root=pathToFileURL(resolve(process.env.HOLYC_WASM ||
   new URL("../holyc-wasm/",import.meta.url).pathname)+"/");
@@ -15,8 +15,9 @@ async function FmtLoad()
       import(new URL("src/compiler.js",compiler_root)),
       import(new URL("src/runtime/host.js",compiler_root))
     ]).then(function ([compiler,host]) {
-      return FmtNew(readFileSync(new URL("HolyCFmt.HC",import.meta.url),"latin1"),
-        compiler.compileHolyC,host.createHost);
+      const compiled=compiler.compileHolyC(readFileSync(new URL("HolyCFmt.HC",import.meta.url),"latin1"),
+        {filename:"HolyCFmt.HC",lenient:false,resilient:false,exports:FMT_EXPORTS});
+      return FmtNew(compiled.bytes,host.createHost);
     }).catch(function (error) {
       formatter=null;
       if (error.code=="ERR_MODULE_NOT_FOUND")
